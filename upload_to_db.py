@@ -4,46 +4,61 @@ import time
 
 import pymysql
 import pandas as pd
-pd.options.mode.chained_assignment = None
 import numpy as np
+
+pd.options.mode.chained_assignment = None
 
 rds_host = "golden.cpwfu1xlyexe.us-west-1.rds.amazonaws.com"
 
-def preprocess_csv(csv_path):
+
+def preprocess_csv(csv_path: str):
     print("Preprocessing data...")
     df = pd.read_csv(csv_path, low_memory=False)
+
+    # Filter the useful columns
     filtered_df = df[['DBA Name', 'Street Address', 'City', 'State', 'Source Zipcode',
                       'Business Start Date', 'Business End Date', 'Neighborhoods - Analysis Boundaries',
                       'Business Location', 'UniqueID']]
 
+    # Clean the city column
     filtered_df['City'] = filtered_df['City'].apply(
         lambda x: "San Francisco" if isinstance(x, str) and 'san' in x.lower() and 'francisco' in x.lower() else x)
 
+    # Filter by San Francisco
     filtered_df = filtered_df[filtered_df['City'] == 'San Francisco']
+
+    # Replace unwanted symbols
     filtered_df['DBA Name'] = filtered_df['DBA Name'].str.replace(",", '')
     filtered_df['Street Address'] = filtered_df['Street Address'].str.replace(",", '')
     filtered_df['Neighborhoods - Analysis Boundaries'] = filtered_df['Neighborhoods - Analysis Boundaries'].str.replace(
         ",", '')
 
+    # Generate two new columns to separately store the two location coordinates
     filtered_df['x_coordinate_location'] = filtered_df['Business Location'].apply(
         lambda x: float(x.split()[1][1:]) if isinstance(x, str) else np.nan)
     filtered_df['y_coordinate_location'] = filtered_df['Business Location'].apply(
         lambda x: float(x.split()[-1][:-1]) if isinstance(x, str) else np.nan)
 
+    # Replace the NaNs by this special symbol that can be inserted as NULL in an SQL table
     filtered_df = filtered_df.replace({np.nan: "\\N"})
 
-    filtered_df.to_csv("/Users/samarthbhandari/Downloads/Registered_Business_Locations_-_San_Francisco_processed.csv",
+    # Save the processed data
+    filtered_df.to_csv("data/Registered_Business_Locations_-_San_Francisco_processed.csv",
                        index=False)
 
-def upload_data_to_database():
 
+def upload_data_to_database(table_name: str):
     df = pd.read_csv("/Users/samarthbhandari/Downloads/Registered_Business_Locations_-_San_Francisco_processed.csv")
-    table_name = 'sf_gov_data'
 
     print("Connecting to Database...")
     try:
-        connection = pymysql.connect(host=rds_host, user='admin', passwd='password', db='golden_DB', connect_timeout=5,
-                                     cursorclass=pymysql.cursors.DictCursor, local_infile=1)
+        connection = pymysql.connect(host=rds_host,
+                                     user='admin',
+                                     passwd='password',
+                                     db='golden_DB',
+                                     connect_timeout=5,
+                                     cursorclass=pymysql.cursors.DictCursor,
+                                     local_infile=1)
     except Exception as e:
         print(e)
         sys.exit()
@@ -58,13 +73,12 @@ def upload_data_to_database():
                          f"State VARCHAR(2), Source_Zipcode VARCHAR(10), Business_Start_Date DATE,  " \
                          f"Business_End_Date DATE, Neighborhoods VARCHAR(30), Business_Location VARCHAR(30), " \
                          f"UniqueID VARCHAR(225), x_coordinate_location FLOAT, y_coordinate_location FLOAT,  " \
-                         f"PRIMARY KEY (UniqueID), INDEX neighborhood_index (Neighborhoods), INDEX date_index (Business_End_Date))"
+                         f"PRIMARY KEY (UniqueID), INDEX neighborhood_index (Neighborhoods))"
 
     cursor.execute(create_table_query)
 
-
     print("Uploading data...")
-    query = f"""LOAD DATA LOCAL INFILE '/Users/samarthbhandari/Downloads/Registered_Business_Locations_-_San_Francisco_processed.csv'
+    query = f"""LOAD DATA LOCAL INFILE 'data/Registered_Business_Locations_-_San_Francisco_processed.csv'
     INTO TABLE {table_name}
     FIELDS TERMINATED BY ','
     LINES TERMINATED BY '\n'
@@ -80,8 +94,8 @@ def upload_data_to_database():
     connection.commit()
     print("Upload complete...")
 
-    calculate_size_query  = "SELECT table_name , round(((data_length + index_length) / 1024 / 1024), 2) as SIZE_MB " \
-                            "FROM information_schema.TABLES WHERE table_schema = DATABASE() ORDER BY SIZE_MB DESC"
+    calculate_size_query = "SELECT table_name , round(((data_length + index_length) / 1024 / 1024), 2) as SIZE_MB " \
+                           "FROM information_schema.TABLES WHERE table_schema = DATABASE() ORDER BY SIZE_MB DESC"
 
     cursor.execute(calculate_size_query)
     size_mb = cursor.fetchall()
@@ -90,14 +104,19 @@ def upload_data_to_database():
 
     print(f"Total Time taken: {time_taken} seconds")
     print("Number of rows inserted:", len(df))
-    print("Rows inserted per second:", round(len(df)/time_taken, 2))
+    print("Rows inserted per second:", round(len(df) / time_taken, 2))
     print("Total size of table in MB:", float(size_mb[0]['SIZE_MB']))
 
 
 def main():
-    csv_path = os.path.abspath("/Users/samarthbhandari/Downloads/Registered_Business_Locations_-_San_Francisco.csv")
+    csv_path = os.path.abspath("data/Registered_Business_Locations_-_San_Francisco.csv")
+
+    # Preprocesses the data and saved it as a new CSV
     preprocess_csv(csv_path)
-    upload_data_to_database()
+
+    # Uploads data to the given table
+    upload_data_to_database(table_name='sf_gov_data')
+
 
 if __name__ == '__main__':
     main()
