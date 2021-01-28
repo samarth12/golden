@@ -1,11 +1,11 @@
 {
   "swagger": "2.0",
   "info": {
-    "version": "2021-01-24T23:32:04Z",
+    "version": "2021-01-28T03:33:09Z",
     "title": "goldenApi"
   },
   "host": "i0btc4oss2.execute-api.us-west-1.amazonaws.com",
-  "basePath": "/test",
+  "basePath": "/prod",
   "schemes": [
     "https"
   ],
