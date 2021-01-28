@@ -31,7 +31,7 @@ The `upload_to_db.py` script contains two functions -
 
 I used AWS API Gateway to build the REST API. I used Lambda behind the gateway to process incoming request and accordingly query the database. I chose AWS to enable myself for quick testing and deployment. 
 
-The response is pretty printed. 
+The response is pretty printed. The `swagger` folder contains swagger format for the API in json and YAML format. 
 
 ### Query 1
 
