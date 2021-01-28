@@ -38,7 +38,7 @@ def run_query2(cursor, event, neighborhood):
         "FROM sf_gov_data "
         "USE INDEX (neighborhood_index) "
         f"WHERE Business_End_Date IS NULL AND Neighborhoods = '{neighborhood}' "
-        f"ORDER BY days_active {order} limit 5")
+        f"ORDER BY days_active {order} limit 100")
     names = cursor.fetchall()
     response['neighborhood'] = neighborhood
     response['DBA_Names'] = names
